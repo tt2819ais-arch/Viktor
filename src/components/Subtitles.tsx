@@ -63,7 +63,7 @@ export function Subtitles({ track, currentTime, onSeek }: Props) {
 
   return (
     <div ref={listRef} className="scroll-area h-full overflow-y-auto px-2 py-6">
-      <div className="mx-auto flex max-w-md flex-col gap-1">
+      <div className="mx-auto flex max-w-md flex-col gap-2.5">
         {cues.map((cue, i) => {
           const isActive = i === active;
           return (
