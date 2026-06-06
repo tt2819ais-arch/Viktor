@@ -1,0 +1,97 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import type { Cue, Track } from "../types";
+import { parseVtt, activeCueIndex } from "../lib/vtt";
+import { asset } from "../lib/format";
+import { useSettings } from "../context/SettingsContext";
+
+interface Props {
+  track: Track | null;
+  currentTime: number;
+  onSeek: (t: number) => void;
+}
+
+export function Subtitles({ track, currentTime, onSeek }: Props) {
+  const { t } = useSettings();
+  const [cues, setCues] = useState<Cue[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setCues([]);
+    setLoaded(false);
+    if (!track?.subtitles) return;
+    let alive = true;
+    fetch(asset(track.subtitles))
+      .then((r) => (r.ok ? r.text() : ""))
+      .then((raw) => {
+        if (!alive) return;
+        setCues(parseVtt(raw));
+        setLoaded(true);
+      })
+      .catch(() => alive && setLoaded(true));
+    return () => {
+      alive = false;
+    };
+  }, [track?.subtitles]);
+
+  const active = useMemo(() => activeCueIndex(cues, currentTime), [cues, currentTime]);
+
+  // keep the active line centered
+  useEffect(() => {
+    if (activeRef.current && listRef.current) {
+      activeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [active]);
+
+  if (!track || !track.subtitles) {
+    return (
+      <div className="grid h-full place-items-center px-6 text-center">
+        <p className="text-faint text-sm">{t.player.noSubtitles}</p>
+      </div>
+    );
+  }
+
+  if (loaded && cues.length === 0) {
+    return (
+      <div className="grid h-full place-items-center px-6 text-center">
+        <p className="text-faint text-sm">{t.player.noSubtitles}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={listRef} className="scroll-area h-full overflow-y-auto px-2 py-6">
+      <div className="mx-auto flex max-w-md flex-col gap-1">
+        {cues.map((cue, i) => {
+          const isActive = i === active;
+          return (
+            <button
+              key={i}
+              ref={isActive ? activeRef : undefined}
+              onClick={() => onSeek(cue.start + 0.01)}
+              className="pressable rounded-2xl px-4 py-2 text-left"
+            >
+              <motion.span
+                className="block heading leading-snug"
+                animate={{
+                  opacity: isActive ? 1 : i < active ? 0.32 : 0.5,
+                  scale: isActive ? 1 : 0.985,
+                  filter: isActive ? "blur(0px)" : "blur(0.3px)",
+                }}
+                transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+                style={{
+                  fontSize: isActive ? "1.35rem" : "1.05rem",
+                  color: isActive ? "var(--text)" : "var(--text-dim)",
+                }}
+              >
+                {cue.text}
+              </motion.span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
