@@ -16,14 +16,14 @@ import {
 } from "lucide-react";
 import type { PlayerState } from "../hooks/usePlayer";
 import { useSettings } from "../context/SettingsContext";
-import { AlbumArt } from "./AlbumArt";
 import { SeekBar } from "./SeekBar";
 import { Subtitles } from "./Subtitles";
 import { Visualizer } from "./Visualizer";
 
 export function Player({ player }: { player: PlayerState }) {
   const { t, visualizer } = useSettings();
-  const [showLyrics, setShowLyrics] = useState(false);
+  // Subtitles are the default view (no album art).
+  const [showLyrics, setShowLyrics] = useState(true);
   const { current } = player;
 
   if (!current) {
@@ -43,61 +43,52 @@ export function Player({ player }: { player: PlayerState }) {
   const VolIcon = player.muted || player.volume === 0 ? VolumeX : player.volume < 0.5 ? Volume1 : Volume2;
 
   return (
-    <div className="scroll-area mx-auto flex h-full w-full max-w-5xl flex-col gap-2 overflow-y-auto px-5 pb-4 pt-2 sm:gap-4 lg:flex-row lg:items-stretch lg:gap-10 lg:overflow-hidden lg:px-8">
-      {/* Left: art + visualizer */}
-      <div className="flex shrink-0 flex-col items-center justify-center gap-3 py-1 sm:gap-5 sm:py-2 lg:flex-1 lg:py-6">
-        <motion.div
-          layout
-          className="relative aspect-square w-full max-w-[clamp(150px,26vh,360px)] sm:max-w-[clamp(180px,34vh,360px)] lg:max-w-[clamp(200px,42vh,360px)]"
-        >
-          <AlbumArt track={current} isPlaying={player.isPlaying} />
-        </motion.div>
-
-        {visualizer && (
-          <div className="hidden h-10 w-full max-w-[360px] sm:block sm:h-12">
-            <Visualizer
-              getAnalyser={player.getAnalyser}
-              isPlaying={player.isPlaying}
-              className="h-full w-full"
-            />
-          </div>
-        )}
+    <div className="scroll-area mx-auto flex h-full w-full max-w-2xl flex-col gap-3 overflow-y-auto px-5 pb-4 pt-3 sm:gap-4">
+      {/* Now playing header (always visible, no album art) */}
+      <div className="flex shrink-0 flex-col items-center gap-0.5 px-1 text-center">
+        <span className="text-faint text-[11px] uppercase tracking-[0.18em]">{t.player.now}</span>
+        <h1 className="heading text-2xl leading-tight sm:text-3xl">{current.title}</h1>
+        <p className="text-dim text-sm sm:text-base">{current.artist || t.player.unknownArtist}</p>
       </div>
 
-      {/* Right: meta + controls (or lyrics) */}
-      <div className="flex shrink-0 flex-col justify-end gap-3 sm:gap-4 lg:flex-1 lg:justify-center">
-        <div className="relative min-h-0">
-          <AnimatePresence mode="wait">
-            {showLyrics ? (
-              <motion.div
-                key="lyrics"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
-                className="panel h-[clamp(180px,32vh,300px)] overflow-hidden rounded-[28px]"
-              >
-                <Subtitles track={current} currentTime={player.currentTime} onSeek={player.seek} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="meta"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
-                className="flex flex-col gap-1 px-1 text-center lg:text-left"
-              >
-                <span className="text-faint text-[11px] uppercase tracking-[0.18em]">
-                  {t.player.now}
-                </span>
-                <h1 className="heading text-3xl leading-tight sm:text-4xl">{current.title}</h1>
-                <p className="text-dim text-base">{current.artist || t.player.unknownArtist}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+      {/* Main: subtitles by default, visualizer when toggled off */}
+      <div className="relative min-h-0 shrink-0">
+        <AnimatePresence mode="wait">
+          {showLyrics ? (
+            <motion.div
+              key="lyrics"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
+              className="panel h-[clamp(200px,38vh,440px)] overflow-hidden rounded-[28px]"
+            >
+              <Subtitles track={current} currentTime={player.currentTime} onSeek={player.seek} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="viz"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
+              className="grid h-[clamp(200px,38vh,440px)] place-items-center rounded-[28px] panel"
+            >
+              {visualizer ? (
+                <Visualizer
+                  getAnalyser={player.getAnalyser}
+                  isPlaying={player.isPlaying}
+                  className="h-28 w-full max-w-[440px] px-6"
+                />
+              ) : (
+                <Music2 className="h-12 w-12 text-dim" strokeWidth={2} />
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
+      <div className="flex shrink-0 flex-col gap-3 sm:gap-4">
         {/* seek */}
         <div className="px-1">
           <SeekBar currentTime={player.currentTime} duration={player.duration} onSeek={player.seek} />
