@@ -43,18 +43,18 @@ export function Player({ player }: { player: PlayerState }) {
   const VolIcon = player.muted || player.volume === 0 ? VolumeX : player.volume < 0.5 ? Volume1 : Volume2;
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-5 pb-4 pt-2 lg:flex-row lg:items-stretch lg:gap-10 lg:px-8">
+    <div className="scroll-area mx-auto flex h-full w-full max-w-5xl flex-col gap-2 overflow-y-auto px-5 pb-4 pt-2 sm:gap-4 lg:flex-row lg:items-stretch lg:gap-10 lg:overflow-hidden lg:px-8">
       {/* Left: art + visualizer */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 py-2 lg:py-6">
+      <div className="flex shrink-0 flex-col items-center justify-center gap-3 py-1 sm:gap-5 sm:py-2 lg:flex-1 lg:py-6">
         <motion.div
           layout
-          className="relative aspect-square w-full max-w-[clamp(200px,42vh,360px)]"
+          className="relative aspect-square w-full max-w-[clamp(150px,26vh,360px)] sm:max-w-[clamp(180px,34vh,360px)] lg:max-w-[clamp(200px,42vh,360px)]"
         >
           <AlbumArt track={current} isPlaying={player.isPlaying} />
         </motion.div>
 
         {visualizer && (
-          <div className="h-12 w-full max-w-[360px]">
+          <div className="hidden h-10 w-full max-w-[360px] sm:block sm:h-12">
             <Visualizer
               getAnalyser={player.getAnalyser}
               isPlaying={player.isPlaying}
@@ -65,7 +65,7 @@ export function Player({ player }: { player: PlayerState }) {
       </div>
 
       {/* Right: meta + controls (or lyrics) */}
-      <div className="flex flex-1 flex-col justify-end gap-4 lg:justify-center">
+      <div className="flex shrink-0 flex-col justify-end gap-3 sm:gap-4 lg:flex-1 lg:justify-center">
         <div className="relative min-h-0">
           <AnimatePresence mode="wait">
             {showLyrics ? (
