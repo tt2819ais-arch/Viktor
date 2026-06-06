@@ -34,6 +34,15 @@ export function Visualizer({ getAnalyser, isPlaying, bars = 48, className }: Pro
       const rect = canvas.getBoundingClientRect();
       const w = rect.width;
       const h = rect.height;
+
+      // Canvas can be hidden (display:none) or not yet laid out → 0×0.
+      // Drawing with non-positive sizes yields negative radii and throws,
+      // so skip this frame but keep the loop alive.
+      if (w <= 0 || h <= 0) {
+        raf.current = requestAnimationFrame(draw);
+        return;
+      }
+
       ctx.clearRect(0, 0, w, h);
 
       const accent = getComputedStyle(document.documentElement)
@@ -44,7 +53,7 @@ export function Visualizer({ getAnalyser, isPlaying, bars = 48, className }: Pro
       if (analyser && isPlaying) analyser.getByteFrequencyData(data);
 
       const gap = 3;
-      const barW = (w - gap * (bars - 1)) / bars;
+      const barW = Math.max(1, (w - gap * (bars - 1)) / bars);
       for (let i = 0; i < bars; i++) {
         const srcIdx = Math.floor((i / bars) * data.length);
         const raw = analyser && isPlaying ? data[srcIdx] / 255 : 0;
@@ -57,7 +66,7 @@ export function Visualizer({ getAnalyser, isPlaying, bars = 48, className }: Pro
         const y = (h - bh) / 2;
         ctx.fillStyle = accent;
         ctx.globalAlpha = 0.25 + 0.65 * smooth.current[i];
-        const r = Math.min(barW / 2, 3);
+        const r = Math.max(0, Math.min(barW / 2, 3));
         roundRect(ctx, x, y, barW, bh, r);
         ctx.fill();
       }
