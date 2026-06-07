@@ -13,20 +13,34 @@ import {
   VolumeX,
   Music2,
   AudioLines,
+  Heart,
+  MoreHorizontal,
+  Maximize2,
+  Share2,
 } from "lucide-react";
 import type { PlayerState } from "../hooks/usePlayer";
+import type { useFavorites } from "../hooks/useFavorites";
 import { useSettings } from "../context/SettingsContext";
 import { SeekBar } from "./SeekBar";
 import { Subtitles } from "./Subtitles";
 import { Visualizer } from "./Visualizer";
+import { MoreSheet } from "./MoreSheet";
+import { FullscreenLyrics } from "./FullscreenLyrics";
+import { QuoteCard } from "./QuoteCard";
 
-export function Player({ player }: { player: PlayerState }) {
-  const { t, visualizer } = useSettings();
+type Fav = ReturnType<typeof useFavorites>;
+
+export function Player({ player, fav }: { player: PlayerState; fav: Fav }) {
+  const { t, visualizer, vizStyle } = useSettings();
   // Subtitles are always visible (they can no longer be hidden). The simple
   // button below toggles a compact equalizer overlay on the subtitle panel.
   const [showViz, setShowViz] = useState(true);
+  const [sheet, setSheet] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [quote, setQuote] = useState(false);
   const { current } = player;
   const hasSubs = Boolean(current?.subtitles);
+  const liked = current ? fav.isFav(current.id) : false;
 
   if (!current) {
     return (
@@ -53,12 +67,30 @@ export function Player({ player }: { player: PlayerState }) {
         <p className="text-dim text-sm sm:text-base">{current.artist || t.player.unknownArtist}</p>
       </div>
 
-      {/* Main panel: subtitles always visible; optional compact equalizer overlay */}
+      {/* Main panel: subtitles always visible; optional compact equalizer overlay.
+          Swipe left/right to change track. */}
       <div className="relative min-h-0 shrink-0">
-        <div className="panel relative h-[clamp(200px,38vh,440px)] overflow-hidden rounded-[28px]">
+        <motion.div
+          className="panel relative h-[clamp(200px,38vh,440px)] overflow-hidden rounded-[28px]"
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.18}
+          onDragEnd={(_, info) => {
+            if (info.offset.x < -70) player.next();
+            else if (info.offset.x > 70) player.prev();
+          }}
+        >
           {hasSubs ? (
             <>
               <Subtitles track={current} currentTime={player.currentTime} onSeek={player.seek} />
+              {/* fullscreen lyrics button */}
+              <button
+                onClick={() => setFullscreen(true)}
+                className="pressable absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full panel-strong text-dim"
+                aria-label="fullscreen"
+              >
+                <Maximize2 className="h-4 w-4" strokeWidth={2.4} />
+              </button>
               <AnimatePresence>
                 {showViz && visualizer && (
                   <motion.div
@@ -72,6 +104,7 @@ export function Player({ player }: { player: PlayerState }) {
                     <Visualizer
                       getAnalyser={player.getAnalyser}
                       isPlaying={player.isPlaying}
+                      variant={vizStyle}
                       className="h-10 w-full max-w-[420px] px-8 opacity-80"
                     />
                   </motion.div>
@@ -84,14 +117,15 @@ export function Player({ player }: { player: PlayerState }) {
                 <Visualizer
                   getAnalyser={player.getAnalyser}
                   isPlaying={player.isPlaying}
-                  className="h-28 w-full max-w-[440px] px-6"
+                  variant={vizStyle}
+                  className="h-40 w-full max-w-[440px] px-6"
                 />
               ) : (
                 <Music2 className="h-12 w-12 text-dim" strokeWidth={2} />
               )}
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
 
       <div className="flex shrink-0 flex-col gap-3 sm:gap-4">
@@ -100,16 +134,8 @@ export function Player({ player }: { player: PlayerState }) {
           <SeekBar currentTime={player.currentTime} duration={player.duration} onSeek={player.seek} />
         </div>
 
-        {/* transport */}
-        <div className="flex items-center justify-center gap-3 lg:justify-start">
-          <IconToggle
-            active={player.shuffle}
-            onClick={player.toggleShuffle}
-            label={t.controls.shuffle}
-          >
-            <Shuffle className="h-5 w-5" strokeWidth={2.4} />
-          </IconToggle>
-
+        {/* transport (simple): prev / play / next */}
+        <div className="flex items-center justify-center gap-5 lg:justify-start">
           <button
             onClick={player.prev}
             aria-label={t.controls.prev}
@@ -145,18 +171,27 @@ export function Player({ player }: { player: PlayerState }) {
           >
             <SkipForward className="h-5 w-5" strokeWidth={2.4} fill="currentColor" />
           </button>
+        </div>
 
-          <IconToggle
-            active={player.repeat !== "off"}
-            onClick={player.cycleRepeat}
-            label={t.controls.repeat}
-          >
-            {player.repeat === "one" ? (
-              <Repeat1 className="h-5 w-5" strokeWidth={2.4} />
-            ) : (
-              <Repeat className="h-5 w-5" strokeWidth={2.4} />
-            )}
-          </IconToggle>
+        {/* utility row: like · shuffle · repeat · quote · more */}
+        <div className="flex items-center justify-center gap-5 lg:justify-start">
+          <UtilBtn active={liked} onClick={() => current && fav.toggle(current.id)} label="like">
+            <Heart className="h-5 w-5" strokeWidth={2.4} fill={liked ? "currentColor" : "none"} />
+          </UtilBtn>
+          <UtilBtn active={player.shuffle} onClick={player.toggleShuffle} label={t.controls.shuffle}>
+            <Shuffle className="h-5 w-5" strokeWidth={2.4} />
+          </UtilBtn>
+          <UtilBtn active={player.repeat !== "off"} onClick={player.cycleRepeat} label={t.controls.repeat}>
+            {player.repeat === "one" ? <Repeat1 className="h-5 w-5" strokeWidth={2.4} /> : <Repeat className="h-5 w-5" strokeWidth={2.4} />}
+          </UtilBtn>
+          {hasSubs && (
+            <UtilBtn active={false} onClick={() => setQuote(true)} label="quote">
+              <Share2 className="h-5 w-5" strokeWidth={2.4} />
+            </UtilBtn>
+          )}
+          <UtilBtn active={sheet} onClick={() => setSheet(true)} label="more">
+            <MoreHorizontal className="h-5 w-5" strokeWidth={2.4} />
+          </UtilBtn>
         </div>
 
         {/* volume + lyrics toggle */}
@@ -191,11 +226,23 @@ export function Player({ player }: { player: PlayerState }) {
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {sheet && <MoreSheet player={player} onClose={() => setSheet(false)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {fullscreen && hasSubs && (
+          <FullscreenLyrics player={player} onClose={() => setFullscreen(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {quote && current && <QuoteCard player={player} onClose={() => setQuote(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
 
-function IconToggle({
+function UtilBtn({
   active,
   onClick,
   label,
