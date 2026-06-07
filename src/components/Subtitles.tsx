@@ -62,28 +62,43 @@ export function Subtitles({ track, currentTime, onSeek }: Props) {
   }
 
   return (
-    <div ref={listRef} className="scroll-area h-full overflow-y-auto px-2 py-6">
-      <div className="mx-auto flex max-w-md flex-col gap-2.5">
+    <div ref={listRef} className="scroll-area h-full overflow-y-auto px-2 py-7">
+      <div className="mx-auto flex max-w-md flex-col gap-3.5">
         {cues.map((cue, i) => {
           const isActive = i === active;
+          // Karaoke sweep: brighten the already-sung portion of the active line.
+          const span = Math.max(0.2, cue.end - cue.start);
+          const p = isActive
+            ? Math.min(100, Math.max(0, ((currentTime - cue.start) / span) * 100))
+            : 0;
+          const sweep = `linear-gradient(to right, var(--text) ${p}%, var(--text-dim) ${p}%)`;
           return (
             <button
               key={i}
               ref={isActive ? activeRef : undefined}
               onClick={() => onSeek(cue.start + 0.01)}
-              className="pressable rounded-2xl px-4 py-2 text-left"
+              className="pressable rounded-2xl px-4 py-1.5 text-left"
             >
               <motion.span
                 className="block heading leading-snug"
                 animate={{
-                  opacity: isActive ? 1 : i < active ? 0.32 : 0.5,
-                  scale: isActive ? 1 : 0.985,
-                  filter: isActive ? "blur(0px)" : "blur(0.3px)",
+                  opacity: isActive ? 1 : i < active ? 0.28 : 0.46,
+                  scale: isActive ? 1 : 0.97,
+                  filter: isActive ? "blur(0px)" : "blur(0.4px)",
                 }}
                 transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
                 style={{
-                  fontSize: isActive ? "1.35rem" : "1.05rem",
-                  color: isActive ? "var(--text)" : "var(--text-dim)",
+                  fontSize: isActive ? "1.55rem" : "1.12rem",
+                  fontWeight: isActive ? 900 : 700,
+                  letterSpacing: "-0.02em",
+                  ...(isActive
+                    ? {
+                        backgroundImage: sweep,
+                        WebkitBackgroundClip: "text",
+                        backgroundClip: "text",
+                        color: "transparent",
+                      }
+                    : { color: "var(--text-dim)" }),
                 }}
               >
                 {cue.text}
