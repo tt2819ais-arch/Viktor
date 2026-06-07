@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
-import { Disc3, ListMusic, SlidersHorizontal } from "lucide-react";
+import { Disc3, ListMusic, Search, SlidersHorizontal } from "lucide-react";
 import type { TabId } from "../types";
 import { useSettings } from "../context/SettingsContext";
 
 const TABS: { id: TabId; icon: typeof Disc3 }[] = [
   { id: "player", icon: Disc3 },
   { id: "library", icon: ListMusic },
+  { id: "search", icon: Search },
   { id: "settings", icon: SlidersHorizontal },
 ];
 
