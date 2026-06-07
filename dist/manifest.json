@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2026-06-07T01:38:46.046Z",
+  "tracks": [
+    {
+      "id": "track-0",
+      "src": "music/Mirèle, Onda Andar - Ночное кафе.mp3",
+      "file": "Mirèle, Onda Andar - Ночное кафе.mp3",
+      "title": "Ночное кафе",
+      "artist": "Mirèle, Onda Andar",
+      "subtitles": "subtitles/Mirèle, Onda Andar - Ночное кафе.vtt"
+    },
+    {
+      "id": "track-1",
+      "src": "music/главный герой – КАРТА В БЛОКЕ.mp3",
+      "file": "главный герой – КАРТА В БЛОКЕ.mp3",
+      "title": "КАРТА В БЛОКЕ",
+      "artist": "главный герой",
+      "subtitles": "subtitles/главный герой – КАРТА В БЛОКЕ.vtt"
+    }
+  ],
+  "videos": [
+    {
+      "id": "bg-0",
+      "src": "video/7642679471761394974.mp4",
+      "name": "7642679471761394974"
+    },
+    {
+      "id": "bg-1",
+      "src": "video/IMG_0001.mp4",
+      "name": "IMG_0001"
+    }
+  ]
+}
