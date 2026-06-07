@@ -6,6 +6,8 @@ export type EqPreset = "flat" | "bass" | "vocal" | "treble" | "lounge";
 
 export interface PlayerState {
   audioRef: React.RefObject<HTMLAudioElement>;
+  tracks: Track[];
+  setQueue: (list: Track[], index?: number, autoplay?: boolean) => void;
   current: Track | null;
   index: number;
   isPlaying: boolean;
@@ -51,9 +53,11 @@ const EQ_PRESETS: Record<EqPreset, [number, number, number]> = {
   lounge: [3, -1, 2],
 };
 
-export function usePlayer(tracks: Track[]): PlayerState {
+export function usePlayer(): PlayerState {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [tracks, setTracks] = useState<Track[]>([]);
   const [index, setIndex] = useState(0);
+  const pendingPlayRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -183,6 +187,15 @@ export function usePlayer(tracks: Track[]): PlayerState {
     setIndex(i);
   }, []);
 
+  const setQueue = useCallback(
+    (list: Track[], i = 0, autoplay = true) => {
+      pendingPlayRef.current = autoplay;
+      setTracks(list);
+      setIndex(Math.max(0, Math.min(i, list.length - 1)));
+    },
+    []
+  );
+
   const seek = useCallback((t: number) => {
     const el = audioRef.current;
     if (!el) return;
@@ -300,7 +313,9 @@ export function usePlayer(tracks: Track[]): PlayerState {
     setCurrentTime(0);
     setDuration(0);
     pendingRestoreRef.current = true;
-    if (wasPlaying.current) {
+    const shouldPlay = wasPlaying.current || pendingPlayRef.current;
+    pendingPlayRef.current = false;
+    if (shouldPlay) {
       ensureGraph();
       el.play()
         .then(() => {
@@ -374,8 +389,9 @@ export function usePlayer(tracks: Track[]): PlayerState {
     if (!("mediaSession" in navigator) || !current) return;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: current.title,
-      artist: current.artist || "Viktor",
-      album: "Viktor",
+      artist: current.artist || "",
+      album: current.album || "",
+      artwork: current.cover ? [{ src: current.cover, sizes: "400x400", type: "image/jpeg" }] : [],
     });
     navigator.mediaSession.setActionHandler("play", play);
     navigator.mediaSession.setActionHandler("pause", pause);
@@ -398,6 +414,8 @@ export function usePlayer(tracks: Track[]): PlayerState {
   return useMemo(
     () => ({
       audioRef,
+      tracks,
+      setQueue,
       current,
       index,
       isPlaying,
@@ -434,6 +452,8 @@ export function usePlayer(tracks: Track[]): PlayerState {
       setCrossfade,
     }),
     [
+      tracks,
+      setQueue,
       current,
       index,
       isPlaying,
