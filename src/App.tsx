@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { TabId } from "./types";
 import { useManifest } from "./hooks/useManifest";
 import { usePlayer } from "./hooks/usePlayer";
+import { useFavorites } from "./hooks/useFavorites";
 import { useSettings } from "./context/SettingsContext";
 import { asset } from "./lib/format";
 import { BackgroundLayer } from "./components/BackgroundLayer";
@@ -11,12 +12,25 @@ import { Player } from "./components/Player";
 import { Library } from "./components/Library";
 import { Settings } from "./components/Settings";
 import { MiniBar } from "./components/MiniBar";
+import { ACCENTS, applyAccent, colorForTrack } from "./lib/accent";
 
 export default function App() {
-  const { t } = useSettings();
+  const { t, accent, autoAccent } = useSettings();
   const { manifest, loading } = useManifest();
   const player = usePlayer(manifest.tracks);
+  const fav = useFavorites();
   const [tab, setTab] = useState<TabId>("player");
+
+  // Apply accent color: per-track when autoAccent, otherwise the chosen palette.
+  useEffect(() => {
+    if (autoAccent && player.current) {
+      const [a, o] = colorForTrack(player.current.id);
+      applyAccent(a, o);
+    } else {
+      const [a, o] = ACCENTS[accent];
+      applyAccent(a, o);
+    }
+  }, [accent, autoAccent, player.current?.id]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -67,7 +81,7 @@ export default function App() {
 
   return (
     <div className="relative flex h-full w-full flex-col lg:pl-[88px]">
-      <BackgroundLayer videos={manifest.videos} />
+      <BackgroundLayer videos={manifest.videos} getAnalyser={player.getAnalyser} isPlaying={player.isPlaying} />
 
       {/* shared audio element */}
       <audio ref={player.audioRef} src={player.current ? asset(player.current.src) : undefined} preload="metadata" crossOrigin="anonymous" />
@@ -91,9 +105,9 @@ export default function App() {
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)]" />
               </div>
             ) : tab === "player" ? (
-              <Player player={player} />
+              <Player player={player} fav={fav} />
             ) : tab === "library" ? (
-              <Library tracks={manifest.tracks} player={player} />
+              <Library tracks={manifest.tracks} player={player} fav={fav} />
             ) : (
               <Settings videos={manifest.videos} />
             )}
