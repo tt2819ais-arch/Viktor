@@ -1,25 +1,47 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { TabId } from "./types";
+import type { TabId, Track } from "./types";
 import { useManifest } from "./hooks/useManifest";
 import { usePlayer } from "./hooks/usePlayer";
 import { useFavorites } from "./hooks/useFavorites";
 import { useSettings } from "./context/SettingsContext";
-import { asset } from "./lib/format";
+import { getLikes } from "./lib/api";
 import { BackgroundLayer } from "./components/BackgroundLayer";
 import { TabBar } from "./components/TabBar";
 import { Player } from "./components/Player";
 import { Library } from "./components/Library";
+import { Search } from "./components/Search";
 import { Settings } from "./components/Settings";
 import { MiniBar } from "./components/MiniBar";
 import { ACCENTS, applyAccent, colorForTrack } from "./lib/accent";
 
 export default function App() {
-  const { t, accent, autoAccent } = useSettings();
-  const { manifest, loading } = useManifest();
-  const player = usePlayer(manifest.tracks);
+  const { accent, autoAccent } = useSettings();
+  const { manifest } = useManifest(); // background videos only
+  const player = usePlayer();
   const fav = useFavorites();
   const [tab, setTab] = useState<TabId>("player");
+
+  const [likes, setLikes] = useState<Track[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // Load the Yandex "liked" tracks → become the library + initial queue.
+  useEffect(() => {
+    let alive = true;
+    getLikes()
+      .then((list) => {
+        if (!alive) return;
+        setLikes(list);
+        if (list.length) player.setQueue(list, 0, false);
+      })
+      .catch(() => alive && setError(true))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Apply accent color: per-track when autoAccent, otherwise the chosen palette.
   useEffect(() => {
@@ -50,14 +72,6 @@ export default function App() {
           if (e.shiftKey) player.prev();
           else player.seek(Math.max(0, player.currentTime - 5));
           break;
-        case "ArrowUp":
-          e.preventDefault();
-          player.setVolume(player.volume + 0.05);
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          player.setVolume(player.volume - 0.05);
-          break;
         case "m":
         case "M":
         case "ь":
@@ -84,7 +98,7 @@ export default function App() {
       <BackgroundLayer videos={manifest.videos} getAnalyser={player.getAnalyser} isPlaying={player.isPlaying} />
 
       {/* shared audio element */}
-      <audio ref={player.audioRef} src={player.current ? asset(player.current.src) : undefined} preload="metadata" crossOrigin="anonymous" />
+      <audio ref={player.audioRef} src={player.current ? player.current.src : undefined} preload="metadata" crossOrigin="anonymous" />
 
       {/* slim safe-area spacer (no app title) */}
       <div className="safe-top pt-2" aria-hidden />
@@ -101,13 +115,13 @@ export default function App() {
             className="absolute inset-0"
           >
             {loading ? (
-              <div className="grid h-full place-items-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)]" />
-              </div>
+              <Loading />
             ) : tab === "player" ? (
               <Player player={player} fav={fav} />
             ) : tab === "library" ? (
-              <Library tracks={manifest.tracks} player={player} fav={fav} />
+              <Library tracks={likes} player={player} fav={fav} error={error} />
+            ) : tab === "search" ? (
+              <Search player={player} />
             ) : (
               <Settings videos={manifest.videos} />
             )}
@@ -115,7 +129,7 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Mini player shown on library/settings tabs */}
+      {/* Mini player shown off the player tab */}
       <AnimatePresence>
         {tab !== "player" && player.current && (
           <MiniBar player={player} onExpand={() => setTab("player")} />
@@ -126,11 +140,18 @@ export default function App() {
 
       {/* spacer so content clears the mobile tab bar */}
       <div className="h-20 shrink-0 lg:h-0" aria-hidden />
-      <span className="sr-only">{t.appName}</span>
+    </div>
+  );
+}
+
+function Loading() {
+  return (
+    <div className="grid h-full place-items-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)]" />
     </div>
   );
 }
 
 function tabIndex(t: TabId): number {
-  return t === "player" ? 0 : t === "library" ? 1 : 2;
+  return t === "player" ? 0 : t === "library" ? 1 : t === "search" ? 2 : 3;
 }
