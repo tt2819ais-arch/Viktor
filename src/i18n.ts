@@ -2,12 +2,12 @@ import type { Lang } from "./types";
 
 export const dict = {
   ru: {
-    appName: "Viktor",
+    appName: "Музыка",
     tagline: "медиа-плеер",
-    tabs: { player: "Плеер", library: "Библиотека", settings: "Настройки" },
+    tabs: { player: "Плеер", library: "Моя музыка", search: "Поиск", settings: "Настройки" },
     player: {
       nothingTitle: "Нет треков",
-      nothingHint: "Добавьте аудио в папку public/music и пересоберите сайт.",
+      nothingHint: "Откройте «Поиск» или «Мою музыку», чтобы выбрать трек.",
       noSubtitles: "Субтитры не добавлены",
       subtitlesTitle: "Субтитры",
       unknownArtist: "Неизвестный исполнитель",
@@ -16,9 +16,19 @@ export const dict = {
     library: {
       title: "Библиотека",
       count: (n: number) => `${n} ${plural(n, "трек", "трека", "треков")}`,
-      empty: "Папка music пуста",
-      emptyHint: "Положите файлы в public/music — они появятся здесь после сборки.",
-      hasSubs: "субтитры",
+      empty: "Лайков пока нет",
+      emptyHint: "Лайкните треки в Яндекс.Музыке — они появятся здесь.",
+      hasSubs: "текст",
+      filter: "Фильтр по библиотеке",
+      offline: "Нет связи с сервером",
+      offlineHint: "Сервер просыпается или токен не задан. Подождите немного и обновите страницу.",
+    },
+    search: {
+      placeholder: "Найти любой трек…",
+      recent: "Недавно слушали",
+      hint: "Введите название трека или исполнителя.",
+      nothing: "Ничего не найдено",
+      noRecent: "Пока пусто",
     },
     settings: {
       title: "Настройки",
@@ -36,7 +46,7 @@ export const dict = {
       visualizer: "Визуализатор",
       about: "О плеере",
       aboutText:
-        "Статический медиа-плеер. Музыка — public/music, фоны — public/video, субтитры — public/subtitles. Собирается в GitHub Actions.",
+        "Веб-плеер для личной фонотеки Яндекс.Музыки: лайки, поиск, обложки и синхронный текст.",
     },
     controls: {
       play: "Играть",
@@ -52,12 +62,12 @@ export const dict = {
     off: "Выкл",
   },
   en: {
-    appName: "Viktor",
+    appName: "Music",
     tagline: "media player",
-    tabs: { player: "Player", library: "Library", settings: "Settings" },
+    tabs: { player: "Player", library: "Library", search: "Search", settings: "Settings" },
     player: {
       nothingTitle: "No tracks",
-      nothingHint: "Add audio to public/music and rebuild the site.",
+      nothingHint: "Open Search or your Library to pick a track.",
       noSubtitles: "No subtitles added",
       subtitlesTitle: "Subtitles",
       unknownArtist: "Unknown artist",
@@ -66,9 +76,19 @@ export const dict = {
     library: {
       title: "Library",
       count: (n: number) => `${n} ${n === 1 ? "track" : "tracks"}`,
-      empty: "The music folder is empty",
-      emptyHint: "Drop files into public/music — they appear here after a build.",
-      hasSubs: "subtitles",
+      empty: "No liked tracks yet",
+      emptyHint: "Like tracks in Yandex Music — they show up here.",
+      hasSubs: "lyrics",
+      filter: "Filter your library",
+      offline: "No server connection",
+      offlineHint: "The server is waking up or the token is missing. Wait a moment and refresh.",
+    },
+    search: {
+      placeholder: "Find any track…",
+      recent: "Recently played",
+      hint: "Type a track title or artist.",
+      nothing: "Nothing found",
+      noRecent: "Nothing yet",
     },
     settings: {
       title: "Settings",
@@ -86,7 +106,7 @@ export const dict = {
       visualizer: "Visualizer",
       about: "About",
       aboutText:
-        "A static media player. Music — public/music, backgrounds — public/video, subtitles — public/subtitles. Built in GitHub Actions.",
+        "A web player for your personal Yandex Music library: likes, search, covers and synced lyrics.",
     },
     controls: {
       play: "Play",
