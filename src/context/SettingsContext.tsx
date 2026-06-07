@@ -24,6 +24,9 @@ interface SettingsValue {
   setVizStyle: (v: VizStyle) => void;
   bgReactive: boolean;
   setBgReactive: (v: boolean) => void;
+  subtitles: boolean;
+  setSubtitles: (v: boolean) => void;
+  toggleSubtitles: () => void;
   t: Dict;
 }
 
@@ -61,6 +64,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [autoAccent, setAutoAccentState] = useState<boolean>(() => readBool("viktor.autoAccent", false));
   const [vizStyle, setVizStyleState] = useState<VizStyle>(() => read<VizStyle>("viktor.vizStyle", "bars"));
   const [bgReactive, setBgReactiveState] = useState<boolean>(() => readBool("viktor.bgReactive", true));
+  const [subtitles, setSubtitlesState] = useState<boolean>(() => readBool("viktor.subtitles.show", true));
 
   useEffect(() => {
     const root = document.documentElement;
@@ -97,6 +101,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem("viktor.autoAccent", String(autoAccent)); } catch {} }, [autoAccent]);
   useEffect(() => { try { localStorage.setItem("viktor.vizStyle", vizStyle); } catch {} }, [vizStyle]);
   useEffect(() => { try { localStorage.setItem("viktor.bgReactive", String(bgReactive)); } catch {} }, [bgReactive]);
+  useEffect(() => { try { localStorage.setItem("viktor.subtitles.show", String(subtitles)); } catch {} }, [subtitles]);
 
   const value = useMemo<SettingsValue>(
     () => ({
@@ -117,9 +122,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setVizStyle: setVizStyleState,
       bgReactive,
       setBgReactive: setBgReactiveState,
+      subtitles,
+      setSubtitles: setSubtitlesState,
+      toggleSubtitles: () => setSubtitlesState((p) => !p),
       t: dict[lang],
     }),
-    [lang, theme, background, visualizer, accent, autoAccent, vizStyle, bgReactive]
+    [lang, theme, background, visualizer, accent, autoAccent, vizStyle, bgReactive, subtitles]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
