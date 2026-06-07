@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Play,
@@ -25,6 +25,11 @@ export function Player({ player }: { player: PlayerState }) {
   // Subtitles are the default view (no album art).
   const [showLyrics, setShowLyrics] = useState(true);
   const { current } = player;
+
+  // When switching to a track that has no lyrics, fall back to the visualizer.
+  useEffect(() => {
+    setShowLyrics(Boolean(current?.subtitles));
+  }, [current?.id, current?.subtitles]);
 
   if (!current) {
     return (
