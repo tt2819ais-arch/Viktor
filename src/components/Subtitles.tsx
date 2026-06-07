@@ -3,15 +3,18 @@ import { motion } from "framer-motion";
 import type { Cue, Track } from "../types";
 import { parseVtt, activeCueIndex } from "../lib/vtt";
 import { asset } from "../lib/format";
+import { translateLine } from "../lib/translate";
 import { useSettings } from "../context/SettingsContext";
 
 interface Props {
   track: Track | null;
   currentTime: number;
   onSeek: (t: number) => void;
+  big?: boolean;
+  translate?: boolean;
 }
 
-export function Subtitles({ track, currentTime, onSeek }: Props) {
+export function Subtitles({ track, currentTime, onSeek, big = false, translate = false }: Props) {
   const { t } = useSettings();
   const [cues, setCues] = useState<Cue[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -38,11 +41,37 @@ export function Subtitles({ track, currentTime, onSeek }: Props) {
 
   const active = useMemo(() => activeCueIndex(cues, currentTime), [cues, currentTime]);
 
-  // keep the active line centered
+  // optional translation of the active line
+  const [trans, setTrans] = useState("");
   useEffect(() => {
-    if (activeRef.current && listRef.current) {
-      activeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    if (!translate || active < 0 || !cues[active]) { setTrans(""); return; }
+    let alive = true;
+    translateLine(cues[active].text).then((x) => { if (alive) setTrans(x); });
+    return () => { alive = false; };
+  }, [active, translate, cues]);
+
+  // keep the active line centered with a gentle, custom-eased scroll
+  // (native smooth-scroll feels abrupt; this glides over ~0.6s).
+  useEffect(() => {
+    const list = listRef.current;
+    const el = activeRef.current;
+    if (!list || !el) return;
+    const target = el.offsetTop - list.clientHeight / 2 + el.clientHeight / 2;
+    const start = list.scrollTop;
+    const dist = target - start;
+    if (Math.abs(dist) < 2) return;
+    const dur = 620;
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3); // easeOutCubic
+    let startT: number | null = null;
+    let raf = 0;
+    const step = (ts: number) => {
+      if (startT == null) startT = ts;
+      const p = Math.min(1, (ts - startT) / dur);
+      list.scrollTop = start + dist * ease(p);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
   }, [active]);
 
   if (!track || !track.subtitles) {
@@ -80,7 +109,7 @@ export function Subtitles({ track, currentTime, onSeek }: Props) {
                 onClick={() => onSeek(cue.start + 0.01)}
                 className="pressable rounded-2xl px-4 py-1.5 text-left"
               >
-                <span className="block heading leading-snug" style={{ fontSize: "1.5rem", letterSpacing: "-0.02em" }}>
+                <span className="block heading leading-snug" style={{ fontSize: big ? "2.1rem" : "1.5rem", letterSpacing: "-0.02em", transition: "font-size 0.4s cubic-bezier(0.32,0.72,0,1)" }}>
                   {tokens.map((tk) => {
                     if (tk.isSpace) return <span key={tk.idx}>{tk.w}</span>;
                     const current = tk.idx === cur;
@@ -103,6 +132,11 @@ export function Subtitles({ track, currentTime, onSeek }: Props) {
                     );
                   })}
                 </span>
+                {translate && trans && (
+                  <span className="mt-1.5 block font-medium leading-snug" style={{ fontSize: big ? "1.2rem" : "0.95rem", color: "var(--text-dim)", opacity: 0.85 }}>
+                    {trans}
+                  </span>
+                )}
               </button>
             );
           }
@@ -116,7 +150,7 @@ export function Subtitles({ track, currentTime, onSeek }: Props) {
                 className="block heading leading-snug"
                 animate={{ opacity: i < active ? 0.28 : 0.46, scale: 0.97, filter: "blur(0.4px)" }}
                 transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-                style={{ fontSize: "1.12rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-dim)" }}
+                style={{ fontSize: big ? "1.5rem" : "1.12rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-dim)", transition: "font-size 0.4s cubic-bezier(0.32,0.72,0,1), opacity 0.4s" }}
               >
                 {cue.text}
               </motion.span>
