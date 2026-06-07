@@ -27,6 +27,11 @@ function manifestPlugin() {
 // Relative base => the same build works on GitHub Pages (project subpath)
 // and on any custom hosting served from the domain root.
 export default defineConfig({
-  base: "./",
+  base: "/",
   plugins: [react(), manifestPlugin()],
+  server: {
+    proxy: {
+      "/api": "http://localhost:5050",
+    },
+  },
 });
