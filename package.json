@@ -1,9 +1,9 @@
 {
-  "name": "viktor-media-player",
+  "name": "media-player",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Viktor — a dark, bold, multilingual media player. Drop audio into public/music and looping backgrounds into public/video.",
+  "description": "a dark, bold, multilingual media player. Drop audio into public/music and looping backgrounds into public/video.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
