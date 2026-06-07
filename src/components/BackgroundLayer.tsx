@@ -6,10 +6,51 @@ import { asset } from "../lib/format";
 
 const CYCLE_MS = 18000;
 
-export function BackgroundLayer({ videos }: { videos: BackgroundVideo[] }) {
-  const { background, theme } = useSettings();
+interface Props {
+  videos: BackgroundVideo[];
+  getAnalyser?: () => AnalyserNode | null;
+  isPlaying?: boolean;
+}
+
+export function BackgroundLayer({ videos, getAnalyser, isPlaying }: Props) {
+  const { background, theme, bgReactive } = useSettings();
   const [autoIndex, setAutoIndex] = useState(0);
   const timer = useRef<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Pulse the background scale/brightness with the music's low-end energy.
+  useEffect(() => {
+    if (!bgReactive || !getAnalyser) return;
+    let raf = 0;
+    let level = 0;
+    const data = new Uint8Array(64);
+    const tick = () => {
+      const an = getAnalyser();
+      let energy = 0;
+      if (an && isPlaying) {
+        an.getByteFrequencyData(data);
+        // average the lowest ~8 bins (bass)
+        let s = 0;
+        for (let i = 0; i < 8; i++) s += data[i];
+        energy = s / 8 / 255;
+      }
+      level += (energy - level) * 0.2;
+      const el = wrapRef.current;
+      if (el) {
+        const scale = 1 + level * 0.05;
+        const bright = 1 + level * 0.25;
+        el.style.transform = `scale(${scale.toFixed(4)})`;
+        el.style.filter = `brightness(${bright.toFixed(3)})`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      const el = wrapRef.current;
+      if (el) { el.style.transform = ""; el.style.filter = ""; }
+    };
+  }, [bgReactive, getAnalyser, isPlaying]);
 
   // Resolve which video to show based on the setting.
   const active: BackgroundVideo | null = useMemo(() => {
@@ -31,6 +72,7 @@ export function BackgroundLayer({ videos }: { videos: BackgroundVideo[] }) {
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-[var(--bg)]">
+      <div ref={wrapRef} className="absolute inset-0 will-change-transform">
       <AnimatePresence mode="popLayout">
         {active && (
           <motion.video
@@ -49,6 +91,7 @@ export function BackgroundLayer({ videos }: { videos: BackgroundVideo[] }) {
           />
         )}
       </AnimatePresence>
+      </div>
 
       {/* Readability scrim + subtle vignette. Adapts to theme. */}
       <div
