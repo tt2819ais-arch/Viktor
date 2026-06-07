@@ -1,7 +1,7 @@
-// Minimal service worker for the Viktor media player PWA.
+// Minimal service worker for the music PWA.
 // Strategy: cache the app shell + runtime cache for same-origin GETs so the
 // player opens offline once visited. Media files are cached on first play.
-const CACHE = "viktor-cache-v1";
+const CACHE = "music-cache-v2";
 const SCOPE = self.registration.scope; // e.g. https://host/Viktor/
 
 self.addEventListener("install", (event) => {
@@ -25,6 +25,7 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api/")) return; // never cache live API or audio
 
   // Navigation requests: network-first, fall back to cached shell (offline).
   if (req.mode === "navigate") {
