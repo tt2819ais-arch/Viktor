@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Lang, Theme } from "../types";
+import type { AccentKey } from "../lib/accent";
 import { dict, type Dict } from "../i18n";
 
 type BackgroundMode = "auto" | "off" | string; // "auto" | "off" | video id
+export type VizStyle = "bars" | "wave" | "circle";
 
 interface SettingsValue {
   lang: Lang;
@@ -14,6 +16,14 @@ interface SettingsValue {
   setBackground: (b: BackgroundMode) => void;
   visualizer: boolean;
   setVisualizer: (v: boolean) => void;
+  accent: AccentKey;
+  setAccent: (a: AccentKey) => void;
+  autoAccent: boolean;
+  setAutoAccent: (v: boolean) => void;
+  vizStyle: VizStyle;
+  setVizStyle: (v: VizStyle) => void;
+  bgReactive: boolean;
+  setBgReactive: (v: boolean) => void;
   t: Dict;
 }
 
@@ -47,6 +57,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [visualizer, setVisualizerState] = useState<boolean>(() =>
     readBool("viktor.visualizer", true)
   );
+  const [accent, setAccentState] = useState<AccentKey>(() => read<AccentKey>("viktor.accent", "violet"));
+  const [autoAccent, setAutoAccentState] = useState<boolean>(() => readBool("viktor.autoAccent", false));
+  const [vizStyle, setVizStyleState] = useState<VizStyle>(() => read<VizStyle>("viktor.vizStyle", "bars"));
+  const [bgReactive, setBgReactiveState] = useState<boolean>(() => readBool("viktor.bgReactive", true));
 
   useEffect(() => {
     const root = document.documentElement;
@@ -79,6 +93,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, [visualizer]);
 
+  useEffect(() => { try { localStorage.setItem("viktor.accent", accent); } catch {} }, [accent]);
+  useEffect(() => { try { localStorage.setItem("viktor.autoAccent", String(autoAccent)); } catch {} }, [autoAccent]);
+  useEffect(() => { try { localStorage.setItem("viktor.vizStyle", vizStyle); } catch {} }, [vizStyle]);
+  useEffect(() => { try { localStorage.setItem("viktor.bgReactive", String(bgReactive)); } catch {} }, [bgReactive]);
+
   const value = useMemo<SettingsValue>(
     () => ({
       lang,
@@ -90,9 +109,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setBackground: setBackgroundState,
       visualizer,
       setVisualizer: setVisualizerState,
+      accent,
+      setAccent: setAccentState,
+      autoAccent,
+      setAutoAccent: setAutoAccentState,
+      vizStyle,
+      setVizStyle: setVizStyleState,
+      bgReactive,
+      setBgReactive: setBgReactiveState,
       t: dict[lang],
     }),
-    [lang, theme, background, visualizer]
+    [lang, theme, background, visualizer, accent, autoAccent, vizStyle, bgReactive]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
