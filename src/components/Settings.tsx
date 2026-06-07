@@ -1,11 +1,14 @@
-import { Moon, Sun, Languages, Film, AudioLines, Info, Check } from "lucide-react";
+import { Moon, Sun, Languages, Film, AudioLines, Info, Check, Sparkles, Activity } from "lucide-react";
 import type { ReactNode } from "react";
 import type { BackgroundVideo } from "../types";
 import { useSettings } from "../context/SettingsContext";
+import { ACCENTS, ACCENT_KEYS } from "../lib/accent";
 
 export function Settings({ videos }: { videos: BackgroundVideo[] }) {
-  const { t, lang, setLang, theme, setTheme, background, setBackground, visualizer, setVisualizer } =
-    useSettings();
+  const {
+    t, lang, setLang, theme, setTheme, background, setBackground, visualizer, setVisualizer,
+    accent, setAccent, autoAccent, setAutoAccent, bgReactive, setBgReactive,
+  } = useSettings();
 
   return (
     <div className="scroll-area mx-auto h-full w-full max-w-2xl overflow-y-auto px-4 pb-8 pt-2">
@@ -34,9 +37,31 @@ export function Settings({ videos }: { videos: BackgroundVideo[] }) {
         </Row>
       </Section>
 
+      <Section title={lang === "ru" ? "Акцент" : "Accent"}>
+        <Row icon={<Sparkles className="h-[18px] w-[18px]" strokeWidth={2.4} />} label={lang === "ru" ? "Цвет под трек" : "Color per track"}>
+          <Toggle on={autoAccent} onChange={setAutoAccent} labelOn={t.on} labelOff={t.off} />
+        </Row>
+        <div className="flex flex-wrap gap-2.5 px-2 pb-1 pt-1" style={{ opacity: autoAccent ? 0.4 : 1, pointerEvents: autoAccent ? "none" : "auto" }}>
+          {ACCENT_KEYS.map((k) => (
+            <button
+              key={k}
+              onClick={() => setAccent(k)}
+              className="pressable relative grid h-9 w-9 place-items-center rounded-full"
+              style={{ background: ACCENTS[k][0], boxShadow: accent === k ? "0 0 0 2px var(--bg), 0 0 0 4px " + ACCENTS[k][0] : "none" }}
+              aria-label={k}
+            >
+              {accent === k && <Check className="h-4 w-4" strokeWidth={3.4} style={{ color: ACCENTS[k][1] }} />}
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section title={t.settings.background}>
         <Row icon={<Film className="h-[18px] w-[18px]" strokeWidth={2.4} />} label={t.settings.background}>
           <div className="text-faint text-xs">{t.settings.backgroundHint}</div>
+        </Row>
+        <Row icon={<Activity className="h-[18px] w-[18px]" strokeWidth={2.4} />} label={lang === "ru" ? "Реакция на ритм" : "React to beat"}>
+          <Toggle on={bgReactive} onChange={setBgReactive} labelOn={t.on} labelOff={t.off} />
         </Row>
         {videos.length === 0 ? (
           <p className="text-faint px-1 pb-1 text-sm">{t.settings.noVideos}</p>
