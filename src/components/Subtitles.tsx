@@ -66,40 +66,57 @@ export function Subtitles({ track, currentTime, onSeek }: Props) {
       <div className="mx-auto flex max-w-md flex-col gap-3.5">
         {cues.map((cue, i) => {
           const isActive = i === active;
-          // Karaoke sweep: brighten the already-sung portion of the active line.
-          const span = Math.max(0.2, cue.end - cue.start);
-          const p = isActive
-            ? Math.min(100, Math.max(0, ((currentTime - cue.start) / span) * 100))
-            : 0;
-          const sweep = `linear-gradient(to right, var(--text) ${p}%, var(--text-dim) ${p}%)`;
+          if (isActive) {
+            const tokens = wordTimings(cue.text, cue.start, cue.end);
+            // index of the current word = last started word token
+            let cur = -1;
+            for (const tk of tokens) {
+              if (!tk.isSpace && currentTime >= tk.start) cur = tk.idx;
+            }
+            return (
+              <button
+                key={i}
+                ref={activeRef}
+                onClick={() => onSeek(cue.start + 0.01)}
+                className="pressable rounded-2xl px-4 py-1.5 text-left"
+              >
+                <span className="block heading leading-snug" style={{ fontSize: "1.5rem", letterSpacing: "-0.02em" }}>
+                  {tokens.map((tk) => {
+                    if (tk.isSpace) return <span key={tk.idx}>{tk.w}</span>;
+                    const current = tk.idx === cur;
+                    const sung = cur >= 0 && tk.idx < cur;
+                    return (
+                      <motion.span
+                        key={tk.idx}
+                        animate={{ scale: current ? 1.04 : 1 }}
+                        transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
+                        style={{
+                          display: "inline-block",
+                          fontWeight: current ? 900 : 700,
+                          color: current ? "var(--text)" : sung ? "var(--text)" : "var(--text-dim)",
+                          opacity: current ? 1 : sung ? 0.92 : 0.6,
+                          textShadow: current ? "0 0 22px var(--accent)" : "none",
+                        }}
+                      >
+                        {tk.w}
+                      </motion.span>
+                    );
+                  })}
+                </span>
+              </button>
+            );
+          }
           return (
             <button
               key={i}
-              ref={isActive ? activeRef : undefined}
               onClick={() => onSeek(cue.start + 0.01)}
               className="pressable rounded-2xl px-4 py-1.5 text-left"
             >
               <motion.span
                 className="block heading leading-snug"
-                animate={{
-                  opacity: isActive ? 1 : i < active ? 0.28 : 0.46,
-                  scale: isActive ? 1 : 0.97,
-                  filter: isActive ? "blur(0px)" : "blur(0.4px)",
-                }}
+                animate={{ opacity: i < active ? 0.28 : 0.46, scale: 0.97, filter: "blur(0.4px)" }}
                 transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-                style={{
-                  fontSize: isActive ? "1.55rem" : "1.12rem",
-                  fontWeight: isActive ? 900 : 700,
-                  letterSpacing: "-0.02em",
-                  ...(isActive
-                    ? {
-                        backgroundImage: sweep,
-                        WebkitBackgroundClip: "text",
-                        backgroundClip: "text",
-                        color: "transparent",
-                      }
-                    : { color: "var(--text-dim)" }),
-                }}
+                style={{ fontSize: "1.12rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-dim)" }}
               >
                 {cue.text}
               </motion.span>
@@ -109,4 +126,24 @@ export function Subtitles({ track, currentTime, onSeek }: Props) {
       </div>
     </div>
   );
+}
+
+type WordToken = { w: string; idx: number; isSpace: boolean; start: number; end: number };
+
+// Split a line into word/space tokens and distribute the line's [start,end]
+// across the words proportionally to their length. Discrete per-word timing —
+// no continuous gradient, so the highlight doesn't lag.
+function wordTimings(text: string, start: number, end: number): WordToken[] {
+  const parts = text.split(/(\s+)/).filter((p) => p.length > 0);
+  const weight = (p: string) => (/^\s+$/.test(p) ? 0 : p.length + 1);
+  const total = parts.reduce((s, p) => s + weight(p), 0) || 1;
+  const dur = Math.max(0.2, end - start);
+  let acc = 0;
+  return parts.map((p, idx) => {
+    const isSpace = /^\s+$/.test(p);
+    const wStart = start + (acc / total) * dur;
+    acc += weight(p);
+    const wEnd = start + (acc / total) * dur;
+    return { w: p, idx, isSpace, start: wStart, end: wEnd };
+  });
 }
