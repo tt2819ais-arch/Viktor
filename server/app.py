@@ -7,6 +7,7 @@ so the browser talks only to this server and there are no CORS/token issues.
 import os
 import re
 import threading
+import time
 import urllib.parse
 
 import requests
@@ -76,6 +77,49 @@ def fetch_tracks_by_ids(ids):
     return [serialize(by_id[i]) for i in ids if i in by_id]
 
 
+# ── caches (in-memory, single instance) ────────────────────────────────────
+# Resolved Yandex direct download links are slow to obtain (2-3 round trips),
+# and the browser issues many Range requests per track (buffering + seeking).
+# Cache the resolved link per track id so only the FIRST request is slow.
+_link_cache: dict[str, tuple[float, str]] = {}
+_link_lock = threading.Lock()
+_LINK_TTL = 600  # seconds; Yandex signed links stay valid well beyond this
+
+# Cache the likes list briefly so repeat loads are instant.
+_simple_cache: dict[str, tuple[float, object]] = {}
+
+
+def _cached(key: str, ttl: float, producer):
+    hit = _simple_cache.get(key)
+    if hit and (time.time() - hit[0]) < ttl:
+        return hit[1]
+    val = producer()
+    _simple_cache[key] = (time.time(), val)
+    return val
+
+
+def resolve_link(tid: str) -> str:
+    now = time.time()
+    hit = _link_cache.get(tid)
+    if hit and (now - hit[0]) < _LINK_TTL:
+        return hit[1]
+    with _link_lock:
+        hit = _link_cache.get(tid)
+        if hit and (time.time() - hit[0]) < _LINK_TTL:
+            return hit[1]
+        tracks = client().tracks([tid])
+        if not tracks:
+            raise RuntimeError("track not found")
+        # get_direct_links=False fetches only the option list (1 call); we then
+        # resolve a single best link (1 call) instead of resolving them all.
+        infos = tracks[0].get_download_info(get_direct_links=False)
+        mp3 = [d for d in infos if d.codec == "mp3"]
+        best = max(mp3 or infos, key=lambda d: d.bitrate_in_kbps)
+        link = best.direct_link or best.get_direct_link()
+        _link_cache[tid] = (time.time(), link)
+        return link
+
+
 LRC_LINE = re.compile(r"\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]\s?(.*)")
 
 
@@ -122,9 +166,11 @@ def health():
 @app.get("/api/likes")
 def likes():
     try:
-        liked = client().users_likes_tracks().tracks
-        ids = [ts.id for ts in liked]
-        return jsonify(fetch_tracks_by_ids(ids))
+        def produce():
+            liked = client().users_likes_tracks().tracks
+            ids = [ts.id for ts in liked]
+            return fetch_tracks_by_ids(ids)
+        return jsonify(_cached("likes", 60, produce))
     except Exception as e:  # noqa
         return jsonify(error=str(e)), 502
 
@@ -198,13 +244,7 @@ def lyrics(tid):
 @app.get("/api/track/<tid>/stream")
 def stream(tid):
     try:
-        tracks = client().tracks([tid])
-        if not tracks:
-            abort(404)
-        infos = tracks[0].get_download_info(get_direct_links=True)
-        mp3 = [d for d in infos if d.codec == "mp3"]
-        best = max(mp3 or infos, key=lambda d: d.bitrate_in_kbps)
-        link = best.direct_link
+        link = resolve_link(tid)
     except Exception as e:  # noqa
         return Response(f"stream error: {e}", status=502)
 
@@ -212,7 +252,15 @@ def stream(tid):
     fwd_headers = {"User-Agent": "Mozilla/5.0"}
     if range_header:
         fwd_headers["Range"] = range_header
-    upstream = requests.get(link, headers=fwd_headers, stream=True, timeout=30)
+    try:
+        upstream = requests.get(link, headers=fwd_headers, stream=True, timeout=30)
+        # A stale/expired cached link → refetch once.
+        if upstream.status_code in (403, 410):
+            _link_cache.pop(tid, None)
+            link = resolve_link(tid)
+            upstream = requests.get(link, headers=fwd_headers, stream=True, timeout=30)
+    except Exception as e:  # noqa
+        return Response(f"stream error: {e}", status=502)
 
     def generate():
         for chunk in upstream.iter_content(chunk_size=65536):
