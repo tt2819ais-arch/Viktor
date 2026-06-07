@@ -72,7 +72,8 @@ export default function App() {
       {/* shared audio element */}
       <audio ref={player.audioRef} src={player.current ? asset(player.current.src) : undefined} preload="metadata" crossOrigin="anonymous" />
 
-      <Header />
+      {/* slim safe-area spacer (no app title) */}
+      <div className="safe-top pt-2" aria-hidden />
 
       <main className="relative min-h-0 flex-1 overflow-hidden">
         <AnimatePresence mode="wait" custom={direction}>
@@ -113,18 +114,6 @@ export default function App() {
       <div className="h-20 shrink-0 lg:h-0" aria-hidden />
       <span className="sr-only">{t.appName}</span>
     </div>
-  );
-}
-
-function Header() {
-  const { t } = useSettings();
-  return (
-    <header className="safe-top relative z-20 flex items-center justify-center px-5 pt-4 lg:justify-start lg:px-8">
-      <div className="flex items-baseline gap-2">
-        <span className="heading text-xl tracking-tight">{t.appName}</span>
-        <span className="text-faint text-[11px] uppercase tracking-[0.2em]">{t.tagline}</span>
-      </div>
-    </header>
   );
 }
 
