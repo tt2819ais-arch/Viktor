@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Play,
@@ -12,7 +12,7 @@ import {
   Volume1,
   VolumeX,
   Music2,
-  Mic2,
+  AudioLines,
 } from "lucide-react";
 import type { PlayerState } from "../hooks/usePlayer";
 import { useSettings } from "../context/SettingsContext";
@@ -22,14 +22,11 @@ import { Visualizer } from "./Visualizer";
 
 export function Player({ player }: { player: PlayerState }) {
   const { t, visualizer } = useSettings();
-  // Subtitles are the default view (no album art).
-  const [showLyrics, setShowLyrics] = useState(true);
+  // Subtitles are always visible (they can no longer be hidden). The simple
+  // button below toggles a compact equalizer overlay on the subtitle panel.
+  const [showViz, setShowViz] = useState(true);
   const { current } = player;
-
-  // When switching to a track that has no lyrics, fall back to the visualizer.
-  useEffect(() => {
-    setShowLyrics(Boolean(current?.subtitles));
-  }, [current?.id, current?.subtitles]);
+  const hasSubs = Boolean(current?.subtitles);
 
   if (!current) {
     return (
@@ -56,29 +53,33 @@ export function Player({ player }: { player: PlayerState }) {
         <p className="text-dim text-sm sm:text-base">{current.artist || t.player.unknownArtist}</p>
       </div>
 
-      {/* Main: subtitles by default, visualizer when toggled off */}
+      {/* Main panel: subtitles always visible; optional compact equalizer overlay */}
       <div className="relative min-h-0 shrink-0">
-        <AnimatePresence mode="wait">
-          {showLyrics ? (
-            <motion.div
-              key="lyrics"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
-              className="panel h-[clamp(200px,38vh,440px)] overflow-hidden rounded-[28px]"
-            >
+        <div className="panel relative h-[clamp(200px,38vh,440px)] overflow-hidden rounded-[28px]">
+          {hasSubs ? (
+            <>
               <Subtitles track={current} currentTime={player.currentTime} onSeek={player.seek} />
-            </motion.div>
+              <AnimatePresence>
+                {showViz && visualizer && (
+                  <motion.div
+                    key="eq"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.25 }}
+                    className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex h-16 items-end justify-center bg-gradient-to-t from-[var(--bg)]/70 to-transparent"
+                  >
+                    <Visualizer
+                      getAnalyser={player.getAnalyser}
+                      isPlaying={player.isPlaying}
+                      className="h-10 w-full max-w-[420px] px-8 opacity-80"
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
           ) : (
-            <motion.div
-              key="viz"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
-              className="grid h-[clamp(200px,38vh,440px)] place-items-center rounded-[28px] panel"
-            >
+            <div className="grid h-full place-items-center">
               {visualizer ? (
                 <Visualizer
                   getAnalyser={player.getAnalyser}
@@ -88,9 +89,9 @@ export function Player({ player }: { player: PlayerState }) {
               ) : (
                 <Music2 className="h-12 w-12 text-dim" strokeWidth={2} />
               )}
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        </div>
       </div>
 
       <div className="flex shrink-0 flex-col gap-3 sm:gap-4">
@@ -176,17 +177,18 @@ export function Player({ player }: { player: PlayerState }) {
             }}
             aria-label={t.controls.volume}
           />
-          <button
-            onClick={() => setShowLyrics((s) => !s)}
-            className={`pressable grid h-9 w-9 shrink-0 place-items-center rounded-full ${
-              showLyrics ? "" : "panel"
-            }`}
-            style={showLyrics ? { background: "var(--accent)", color: "var(--on-accent)" } : undefined}
-            aria-label={t.player.subtitlesTitle}
-            title={t.player.subtitlesTitle}
-          >
-            <Mic2 className="h-[18px] w-[18px]" strokeWidth={2.4} />
-          </button>
+          {hasSubs && (
+            <button
+              onClick={() => setShowViz((s) => !s)}
+              className={`pressable grid h-9 w-9 shrink-0 place-items-center rounded-full ${
+                showViz ? "text-[var(--accent)]" : "text-dim"
+              }`}
+              aria-label="Эквалайзер"
+              title="Эквалайзер"
+            >
+              <AudioLines className="h-[18px] w-[18px]" strokeWidth={2.4} />
+            </button>
+          )}
         </div>
       </div>
     </div>
