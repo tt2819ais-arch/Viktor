@@ -1,12 +1,27 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Music2, Play, Pause, Mic2 } from "lucide-react";
+import { Music2, Play, Pause, Mic2, Search, Heart, X } from "lucide-react";
 import type { Track } from "../types";
 import type { PlayerState } from "../hooks/usePlayer";
+import type { useFavorites } from "../hooks/useFavorites";
 import { useSettings } from "../context/SettingsContext";
 import { AlbumArt } from "./AlbumArt";
 
-export function Library({ tracks, player }: { tracks: Track[]; player: PlayerState }) {
+type Fav = ReturnType<typeof useFavorites>;
+
+export function Library({ tracks, player, fav }: { tracks: Track[]; player: PlayerState; fav: Fav }) {
   const { t } = useSettings();
+  const [query, setQuery] = useState("");
+  const [onlyFavs, setOnlyFavs] = useState(false);
+
+  const q = query.trim().toLowerCase();
+  const filtered = tracks
+    .map((tr, i) => ({ tr, i }))
+    .filter(({ tr }) => {
+      if (onlyFavs && !fav.isFav(tr.id)) return false;
+      if (!q) return true;
+      return (tr.title + " " + tr.artist).toLowerCase().includes(q);
+    });
 
   if (tracks.length === 0) {
     return (
@@ -26,12 +41,45 @@ export function Library({ tracks, player }: { tracks: Track[]; player: PlayerSta
     <div className="scroll-area mx-auto h-full w-full max-w-3xl overflow-y-auto px-4 pb-6 pt-2">
       <div className="mb-4 flex items-baseline justify-between px-1">
         <h2 className="heading text-3xl">{t.library.title}</h2>
-        <span className="text-faint text-sm">{t.library.count(tracks.length)}</span>
+        <span className="text-faint text-sm">{t.library.count(filtered.length)}</span>
       </div>
+
+      {/* search + favorites filter */}
+      <div className="mb-3 flex items-center gap-2 px-1">
+        <div className="relative flex-1">
+          <Search className="text-faint pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" strokeWidth={2.4} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Поиск / Search"
+            className="w-full rounded-full py-2.5 pl-10 pr-9 text-[14px] outline-none"
+            style={{ background: "var(--panel-strong)", color: "var(--text)" }}
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-dim" aria-label="clear">
+              <X className="h-4 w-4" strokeWidth={2.6} />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => setOnlyFavs((v) => !v)}
+          className="pressable grid h-10 w-10 shrink-0 place-items-center rounded-full"
+          style={{ background: onlyFavs ? "var(--accent)" : "var(--panel-strong)", color: onlyFavs ? "var(--on-accent)" : "var(--text-dim)" }}
+          aria-label="favorites"
+        >
+          <Heart className="h-[18px] w-[18px]" strokeWidth={2.4} fill={onlyFavs ? "currentColor" : "none"} />
+        </button>
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-faint px-1 py-8 text-center text-sm">—</p>
+      )}
+
       <div className="flex flex-col gap-1.5">
-        {tracks.map((track, i) => {
+        {filtered.map(({ tr: track, i }) => {
           const isCurrent = player.index === i;
           const isPlaying = isCurrent && player.isPlaying;
+          const liked = fav.isFav(track.id);
           return (
             <motion.button
               key={track.id}
@@ -79,6 +127,17 @@ export function Library({ tracks, player }: { tracks: Track[]; player: PlayerSta
                   <span className="hidden sm:inline">{t.library.hasSubs}</span>
                 </span>
               )}
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); fav.toggle(track.id); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); fav.toggle(track.id); } }}
+                className="pressable grid h-8 w-8 shrink-0 place-items-center rounded-full"
+                style={{ color: liked ? "var(--accent)" : "var(--text-faint)" }}
+                aria-label="like"
+              >
+                <Heart className="h-[18px] w-[18px]" strokeWidth={2.4} fill={liked ? "currentColor" : "none"} />
+              </span>
               {isPlaying && <PlayingBars />}
             </motion.button>
           );
