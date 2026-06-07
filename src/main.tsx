@@ -11,3 +11,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </SettingsProvider>
   </React.StrictMode>
 );
+
+// Register the service worker so the player is installable (PWA) and works offline.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    const swUrl = `${import.meta.env.BASE_URL}sw.js`;
+    navigator.serviceWorker.register(swUrl).catch(() => {});
+  });
+}
