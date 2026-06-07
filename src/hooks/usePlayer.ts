@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RepeatMode, Track } from "../types";
 import { asset } from "../lib/format";
 
+export type EqPreset = "flat" | "bass" | "vocal" | "treble" | "lounge";
+
 export interface PlayerState {
   audioRef: React.RefObject<HTMLAudioElement>;
   current: Track | null;
@@ -25,7 +27,29 @@ export interface PlayerState {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   getAnalyser: () => AnalyserNode | null;
+  // --- enhancements ---
+  rate: number;
+  setRate: (r: number) => void;
+  eqPreset: EqPreset;
+  setEqPreset: (p: EqPreset) => void;
+  abA: number | null;
+  abB: number | null;
+  setAbA: () => void;
+  setAbB: () => void;
+  clearAb: () => void;
+  sleepRemaining: number | null; // seconds left, or null if off
+  setSleepMinutes: (m: number | null) => void;
+  crossfade: boolean;
+  setCrossfade: (v: boolean) => void;
 }
+
+const EQ_PRESETS: Record<EqPreset, [number, number, number]> = {
+  flat: [0, 0, 0],
+  bass: [6, 0, -1],
+  vocal: [-2, 4, 1],
+  treble: [-1, 0, 6],
+  lounge: [3, -1, 2],
+};
 
 export function usePlayer(tracks: Track[]): PlayerState {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -38,10 +62,25 @@ export function usePlayer(tracks: Track[]): PlayerState {
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>("off");
 
+  // enhancements
+  const [rate, setRateState] = useState(1);
+  const [eqPreset, setEqPresetState] = useState<EqPreset>(
+    () => (localStorage.getItem("viktor.eq") as EqPreset) || "flat"
+  );
+  const [abA, setAbAState] = useState<number | null>(null);
+  const [abB, setAbBState] = useState<number | null>(null);
+  const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
+  const sleepUntilRef = useRef<number | null>(null);
+  const [crossfade, setCrossfadeState] = useState<boolean>(
+    () => localStorage.getItem("viktor.crossfade") === "true"
+  );
+
   // Web Audio graph for the visualizer (created lazily on first play).
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const eqNodesRef = useRef<BiquadFilterNode[]>([]);
+  const gainRef = useRef<GainNode | null>(null);
 
   const current = tracks[index] ?? null;
 
@@ -55,11 +94,35 @@ export function usePlayer(tracks: Track[]): PlayerState {
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 128;
       analyser.smoothingTimeConstant = 0.82;
+      // 3-band EQ
+      const low = ctx.createBiquadFilter();
+      low.type = "lowshelf";
+      low.frequency.value = 120;
+      const mid = ctx.createBiquadFilter();
+      mid.type = "peaking";
+      mid.frequency.value = 1000;
+      mid.Q.value = 0.9;
+      const high = ctx.createBiquadFilter();
+      high.type = "highshelf";
+      high.frequency.value = 4000;
+      const gain = ctx.createGain();
+      gain.gain.value = 1;
       try {
         const src = ctx.createMediaElementSource(el);
-        src.connect(analyser);
-        analyser.connect(ctx.destination);
+        // source -> low -> mid -> high -> analyser -> gain -> destination
+        src.connect(low);
+        low.connect(mid);
+        mid.connect(high);
+        high.connect(analyser);
+        analyser.connect(gain);
+        gain.connect(ctx.destination);
         sourceRef.current = src;
+        eqNodesRef.current = [low, mid, high];
+        gainRef.current = gain;
+        const [lg, mg, hg] = EQ_PRESETS[eqPreset];
+        low.gain.value = lg;
+        mid.gain.value = mg;
+        high.gain.value = hg;
       } catch {
         // a source can only be created once per element; ignore on re-entry
       }
@@ -140,6 +203,82 @@ export function usePlayer(tracks: Track[]): PlayerState {
     []
   );
 
+  // --- enhancement setters ---
+  const setRate = useCallback((r: number) => {
+    const v = Math.min(2, Math.max(0.5, Math.round(r * 100) / 100));
+    setRateState(v);
+    if (audioRef.current) audioRef.current.playbackRate = v;
+  }, []);
+
+  const setEqPreset = useCallback((p: EqPreset) => {
+    setEqPresetState(p);
+    try { localStorage.setItem("viktor.eq", p); } catch {}
+    const [lg, mg, hg] = EQ_PRESETS[p];
+    const nodes = eqNodesRef.current;
+    if (nodes.length === 3) {
+      nodes[0].gain.value = lg;
+      nodes[1].gain.value = mg;
+      nodes[2].gain.value = hg;
+    }
+  }, []);
+
+  const setAbA = useCallback(() => setAbAState(audioRef.current?.currentTime ?? 0), []);
+  const setAbB = useCallback(() => setAbBState(audioRef.current?.currentTime ?? 0), []);
+  const clearAb = useCallback(() => { setAbAState(null); setAbBState(null); }, []);
+
+  const setSleepMinutes = useCallback((m: number | null) => {
+    if (m === null) { sleepUntilRef.current = null; setSleepRemaining(null); return; }
+    sleepUntilRef.current = Date.now() + m * 60000;
+    setSleepRemaining(m * 60);
+  }, []);
+
+  const setCrossfade = useCallback((v: boolean) => {
+    setCrossfadeState(v);
+    try { localStorage.setItem("viktor.crossfade", String(v)); } catch {}
+  }, []);
+
+  // keep A/B in refs so the media-event handlers can read them without re-binding
+  const abARef = useRef<number | null>(null);
+  const abBRef = useRef<number | null>(null);
+  useEffect(() => { abARef.current = abA; }, [abA]);
+  useEffect(() => { abBRef.current = abB; }, [abB]);
+
+  // resume positions (per track id)
+  const posRef = useRef<Record<string, number>>(
+    (() => { try { return JSON.parse(localStorage.getItem("viktor.pos") || "{}"); } catch { return {}; } })()
+  );
+  const savePos = useCallback(() => {
+    const el = audioRef.current;
+    if (!el || !current) return;
+    if (el.currentTime > 5 && el.currentTime < (el.duration || 0) - 5) {
+      posRef.current[current.id] = el.currentTime;
+    } else {
+      delete posRef.current[current.id];
+    }
+    try { localStorage.setItem("viktor.pos", JSON.stringify(posRef.current)); } catch {}
+  }, [current]);
+
+  // sleep timer tick
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (sleepUntilRef.current == null) return;
+      const rem = Math.max(0, Math.round((sleepUntilRef.current - Date.now()) / 1000));
+      setSleepRemaining(rem);
+      if (rem <= 0) {
+        sleepUntilRef.current = null;
+        setSleepRemaining(null);
+        audioRef.current?.pause();
+        setIsPlaying(false);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // apply playback rate when track changes
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = rate;
+  }, [rate, index]);
+
   // Apply volume / mute to the element.
   useEffect(() => {
     const el = audioRef.current;
@@ -154,15 +293,27 @@ export function usePlayer(tracks: Track[]): PlayerState {
     wasPlaying.current = isPlaying;
   }, [isPlaying]);
 
+  const pendingRestoreRef = useRef(false);
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !current) return;
     setCurrentTime(0);
     setDuration(0);
+    pendingRestoreRef.current = true;
     if (wasPlaying.current) {
       ensureGraph();
       el.play()
-        .then(() => setIsPlaying(true))
+        .then(() => {
+          setIsPlaying(true);
+          // crossfade-in: ramp the master gain up on track change
+          if (crossfade && gainRef.current && audioCtxRef.current) {
+            const g = gainRef.current.gain;
+            const tnow = audioCtxRef.current.currentTime;
+            g.cancelScheduledValues(tnow);
+            g.setValueAtTime(0.0001, tnow);
+            g.linearRampToValueAtTime(1, tnow + 0.7);
+          }
+        })
         .catch(() => setIsPlaying(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,8 +323,22 @@ export function usePlayer(tracks: Track[]): PlayerState {
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
-    const onTime = () => setCurrentTime(el.currentTime);
-    const onDur = () => setDuration(el.duration || 0);
+    const onTime = () => {
+      const a = abARef.current, b = abBRef.current;
+      if (a != null && b != null && b > a && el.currentTime >= b) el.currentTime = a;
+      setCurrentTime(el.currentTime);
+      if (Math.floor(el.currentTime) % 5 === 0) savePos();
+    };
+    const onDur = () => {
+      setDuration(el.duration || 0);
+      if (pendingRestoreRef.current && current) {
+        const saved = posRef.current[current.id];
+        if (saved && saved > 5 && saved < (el.duration || 0) - 5) {
+          el.currentTime = saved;
+        }
+        pendingRestoreRef.current = false;
+      }
+    };
     const onEnd = () => {
       if (repeat === "one") {
         el.currentTime = 0;
@@ -187,7 +352,7 @@ export function usePlayer(tracks: Track[]): PlayerState {
       setIndex(pickNext(1));
     };
     const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
+    const onPause = () => { setIsPlaying(false); savePos(); };
     el.addEventListener("timeupdate", onTime);
     el.addEventListener("loadedmetadata", onDur);
     el.addEventListener("durationchange", onDur);
@@ -254,6 +419,19 @@ export function usePlayer(tracks: Track[]): PlayerState {
       toggleShuffle,
       cycleRepeat,
       getAnalyser,
+      rate,
+      setRate,
+      eqPreset,
+      setEqPreset,
+      abA,
+      abB,
+      setAbA,
+      setAbB,
+      clearAb,
+      sleepRemaining,
+      setSleepMinutes,
+      crossfade,
+      setCrossfade,
     }),
     [
       current,
@@ -277,6 +455,19 @@ export function usePlayer(tracks: Track[]): PlayerState {
       toggleShuffle,
       cycleRepeat,
       getAnalyser,
+      rate,
+      setRate,
+      eqPreset,
+      setEqPreset,
+      abA,
+      abB,
+      setAbA,
+      setAbB,
+      clearAb,
+      sleepRemaining,
+      setSleepMinutes,
+      crossfade,
+      setCrossfade,
     ]
   );
 }
